@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block body %}
+{% if not job %}
+  <div style="padding:14vh 0 0"><h2 class="title">All caught up</h2>
+  <p class="mut">New jobs arrive with the hourly scan.</p>
+  <div class="row"><a class="btn" href="/saved">Saved jobs</a>
+  {% if can_undo %}<form method="post" action="/undo"><button>{{ icon("undo") }} Undo last</button></form>{% endif %}</div></div>
+{% else %}
+<article id="card" class="card" style="border:0;padding-top:12px">
+  <div class="row" style="align-items:flex-start;flex-wrap:nowrap">
+    <div class="grow">
+      <div class="mut small num">{{ left }} left</div>
+      <h2 class="title" style="margin-top:6px">{{ job.title }}</h2>
+      <div>{{ job.company }} <span class="mut">&middot; {{ job.search_city }} &middot; {{ job.site }}</span></div>
+    </div>
+    {% if job.match is not none and has_profile %}
+    <div style="text-align:right"><div class="num" style="font:400 2.6rem/1 ui-serif,'New York',Georgia,serif">{{ job.match }}</div><div class="mut small">% match</div></div>
+    {% endif %}
+  </div>
+  <p class="mut small num" style="margin:14px 0">
+    {% if job.exp_min is not none %}{{ '%g'|format(job.exp_min) }}-{{ '%g'|format(job.exp_max) }} yrs experience{% endif %}
+    {% if job.date_posted %}&nbsp;&nbsp;Posted {{ job.date_posted[:10] }}{% endif %}
+    {% if job.min_amount and job.min_amount != 'None' %}&nbsp;&nbsp;{{ job.min_amount|money }}-{{ job.max_amount|money }} {{ job.currency or '' }}{% endif %}
+  </p>
+  <div>
+    {% for s in job.have %}<span class="tag">{{ s }}</span>{% endfor %}
+    {% for s in job.missing %}<span class="tag miss">{{ s }}</span>{% endfor %}
+    {% if not job.skills %}<span class="mut small">No skills detected</span>{% endif %}
+  </div>
+  <div style="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:24px;padding-top:24px;border-top:1px solid var(--line)">{{ (job.description or 'No description captured for this posting.')|plain }}</div>
+</article>
+
+<div id="bar" style="position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 24px">
+  <div class="row" style="max-width:720px;margin:0 auto;flex-wrap:nowrap">
+    <form method="post" action="/swipe" class="grow" data-dir="left"><input type="hidden" name="url" value="{{ job.job_url }}"><input type="hidden" name="action" value="pass">
+      <button id="pass" style="width:100%;justify-content:center">{{ icon("x") }} Pass</button></form>
+    <form method="post" action="/undo"><button id="undo" title="Undo" aria-label="Undo" {{ '' if can_undo else 'disabled' }}>{{ icon("undo") }}</button></form>
+    <a class="btn" href="{{ job.job_url|safe_url }}" target="_blank" rel="noopener noreferrer" aria-label="Open posting">{{ icon("ext") }}</a>
+    <form method="post" action="/swipe" class="grow" data-dir="right"><input type="hidden" name="url" value="{{ job.job_url }}"><input type="hidden" name="action" value="save">
+      <button id="save" class="save" style="width:100%;justify-content:center">{{ icon("star") }} Save</button></form>
+  </div>
+</div>
+
+<script nonce="{{ request.state.nonce }}">
+const card = document.getElementById('card'), ease = 'transform .22s cubic-bezier(.2,.7,.2,1), opacity .22s';
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function fling(form, dir) {
+  if (form.dataset.busy) return; form.dataset.busy = 1;
+  if (still) return form.submit();
+  card.style.transition = ease;
+  card.style.transform = `translateX(${dir === 'right' ? 120 : -120}px) rotate(${dir === 'right' ? 4 : -4}deg)`; card.style.opacity = 0;
+  setTimeout(() => form.submit(), 200);
+}
+document.querySelectorAll('form[data-dir]').forEach(f => f.addEventListener('submit', e => { e.preventDefault(); fling(f, f.dataset.dir); }));
+const click = id => { const b = document.getElementById(id); if (b && !b.disabled) b.click(); };
+addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey) return;
+  if (e.key === 'ArrowLeft') click('pass'); else if (e.key === 'ArrowRight') click('save'); else if (e.key === 'ArrowDown' || e.key === 'u') click('undo');
+});
+let x0 = null, y0 = null, dragging = false;
+card.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dragging = false; card.style.transition = 'none'; }, {passive:true});
+card.addEventListener('touchmove', e => {
+  if (x0 === null) return; const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
+  if (!dragging && Math.abs(dx) > 12 && Math.abs(dx) > 2 * Math.abs(dy)) dragging = true;
+  if (dragging) { card.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`; card.style.opacity = 1 - Math.min(Math.abs(dx) / 400, .5); }
+}, {passive:true});
+card.addEventListener('touchend', e => {
+  if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null;
+  if (dragging && Math.abs(dx) > 100) click(dx > 0 ? 'save' : 'pass');
+  else { card.style.transition = ease; card.style.transform = ''; card.style.opacity = 1; }
+});
+</script>
+{% endif %}
+{% endblock %}

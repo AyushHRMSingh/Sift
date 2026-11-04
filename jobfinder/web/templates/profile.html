@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block body %}
+{% if msg %}<div class="card">{{ msg }}</div>{% endif %}
+<form class="card" method="post" action="/profile/resume" enctype="multipart/form-data">
+  <h3>Resume (PDF)</h3>
+  <input type="file" name="file" accept="application/pdf" required>
+  <p><button class="primary">Upload and parse</button></p>
+</form>
+<form class="card" method="post" action="/profile/skills">
+  <h3>Experience</h3>
+  {% if prof.experience %}
+    <p class="mut">Parsed {{ prof.experience.years }} years ({{ prof.experience.months }} months) from your resume:</p>
+    <ul>{% for r in prof.experience.roles %}<li>{{ r.title }} <span class="mut">({{ r['from'] }} – {{ r.to }})</span></li>{% endfor %}</ul>
+  {% else %}<p class="mut">Upload a resume to detect experience.</p>{% endif %}
+  <label>Years of experience (used to hide jobs that ask for much more)</label>
+  <input name="years" value="{{ prof.years if prof.years is not none else '' }}" inputmode="decimal" style="max-width:160px">
+  <h3 style="margin-top:20px">My skills</h3>
+  <div class="checks">{% for s in all_skills %}<label><input type="checkbox" name="skills" value="{{ s }}" {{ 'checked' if s in prof.skills }}>{{ s }}</label>{% endfor %}</div>
+  <p><button class="primary">Save</button></p>
+</form>
+{% endblock %}

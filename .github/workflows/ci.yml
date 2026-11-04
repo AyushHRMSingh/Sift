@@ -1,0 +1,16 @@
+name: ci
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 5 * * 1"   # weekly, so new CVEs in pinned dependencies surface without a code change
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.lock -r requirements-dev.txt pip-audit
+      - run: python -m pytest -q
+      - run: pip-audit -r requirements.lock

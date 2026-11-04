@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block body %}
+<form method="post" action="/login" style="max-width:300px;margin:18vh auto 0">
+  <h2 class="title" style="margin-bottom:20px">JobSpy</h2>
+  {% if error %}<p class="err small">{{ error }}</p>{% endif %}
+  <label>Username</label><input name="username" autocomplete="username" autofocus required>
+  <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
+  <p style="margin-top:20px"><button class="primary" style="width:100%;justify-content:center">Log in</button></p>
+</form>
+{% endblock %}

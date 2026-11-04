@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% macro bars(rows, key, label, val, suffix='%', mark=None) %}
+<table>{% for r in rows %}<tr><td style="width:34%">{{ r[label] }}{% if mark and r[mark] %} <span class="mut small">have</span>{% endif %}</td>
+<td><div class="bar"><i style="width:{{ [r[val], 100]|min }}%"></i></div></td><td class="num" style="width:64px;text-align:right">{{ r[val] }}{{ suffix }}</td></tr>{% endfor %}</table>
+{% endmacro %}
+{% block body %}
+{% if not a.n %}<p class="mut" style="padding-top:12vh">No analyzable jobs yet. Run a scan.</p>{% else %}
+<p class="mut small num" style="margin-top:0">{{ a.n }} jobs analyzed, {{ a.n_desc }} with descriptions{% if a.range %}, posted {{ a.range[0]|date }} to {{ a.range[1]|date }}{% endif %}.
+  {% for s, n in a.sites.items() %}{{ s }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}</p>
+
+{% if a.tips %}
+<h3 style="margin-top:8px">How to optimize</h3>
+<ul style="padding-left:18px;margin:0">{% for t in a.tips %}<li style="margin:6px 0">{{ t }}</li>{% endfor %}</ul>
+{% elif not has_profile %}
+<p class="mut">Upload a resume on the Profile page to get personal recommendations.</p>
+{% endif %}
+
+{% if a.learn %}
+<h3>Learn next</h3>
+<p class="mut small" style="margin-top:0">Ranked by how many more postings would become a 60%+ match for you.</p>
+<table><tr><th>Skill</th><th class="num">Unlocks</th><th class="num">In postings</th></tr>
+{% for r in a.learn %}<tr><td>{{ r.skill }}</td><td class="num">{{ r.unlock }}</td><td class="num">{{ r.share }}%</td></tr>{% endfor %}</table>
+{% endif %}
+
+<h3>Rising and falling</h3>
+{% if a.trend_note %}<p class="mut small">{{ a.trend_note }}</p>
+{% else %}
+<p class="mut small" style="margin-top:0">Share of postings mentioning each skill, last 7 days vs the 7 before ({{ a.trend_n[0] }} and {{ a.trend_n[1] }} postings).</p>
+<table>{% for r in a.rising %}<tr><td>{{ r.skill }}</td><td class="num mut">{{ r.before }}% to {{ r.now }}%</td><td class="num" style="text-align:right">+{{ r.change }}</td></tr>{% endfor %}
+{% for r in a.falling %}<tr><td class="mut">{{ r.skill }}</td><td class="num mut">{{ r.before }}% to {{ r.now }}%</td><td class="num mut" style="text-align:right">{{ r.change }}</td></tr>{% endfor %}</table>
+{% endif %}
+
+<h3>What separates senior from entry roles</h3>
+{% if a.level_note %}<p class="mut small">{{ a.level_note }}</p>
+{% else %}
+<p class="mut small" style="margin-top:0">Skills far more common in postings asking 3+ years ({{ a.level_n[0] }}) than 0-1 years ({{ a.level_n[1] }}). This is the path up.</p>
+<table><tr><th>Skill</th><th class="num">0-1 yrs</th><th class="num">3+ yrs</th></tr>
+{% for r in a.level %}<tr><td>{{ r.skill }}{% if r.have %} <span class="mut small">have</span>{% endif %}</td><td class="num mut">{{ r.entry }}%</td><td class="num">{{ r.senior }}%</td></tr>{% endfor %}</table>
+{% endif %}
+
+<h3>Pay</h3>
+{% if a.pay %}
+<p class="mut small" style="margin-top:0">Median advertised {{ (a.salary_median / 100000)|round(1) }} LPA across {{ a.n_salary }} postings with a salary. Skills below pay more than that median.</p>
+<table><tr><th>Skill</th><th class="num">Median</th><th class="num">Postings</th><th class="num">Vs overall</th></tr>
+{% for r in a.pay %}<tr><td>{{ r.skill }}{% if r.have %} <span class="mut small">have</span>{% endif %}</td><td class="num">{{ (r.median / 100000)|round(1) }} LPA</td><td class="num mut">{{ r.jobs }}</td><td class="num">{{ '%+d'|format(r.vs) }}%</td></tr>{% endfor %}</table>
+{% else %}<p class="mut small">Only {{ a.n_salary }} postings list a salary; need 15 for a reliable comparison.</p>{% endif %}
+
+{% if a.queries %}
+<h3>Scan tuning</h3>
+<p class="mut small" style="margin-top:0">Per search term: jobs found, and how many are a strong fit for you. Credit goes to the first term that found a job.</p>
+<table><tr><th>Search</th><th class="num">Found</th><th class="num">Strong</th><th class="num">Rate</th></tr>
+{% for q in a.queries %}<tr><td>{{ q.term }}</td><td class="num">{{ q.found }}</td><td class="num">{{ q.strong }}</td><td class="num">{{ q.rate }}%</td></tr>{% endfor %}</table>
+{% endif %}
+
+<h3>Demand</h3>
+{{ bars(a.demand, 'skill', 'skill', 'share', '%', 'have') }}
+{% endif %}
+{% endblock %}

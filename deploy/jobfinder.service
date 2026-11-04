@@ -1,0 +1,42 @@
+# Template. Install with:
+#   sed -e "s|__USER__|$USER|g" -e "s|__DIR__|$PWD|g" deploy/jobfinder.service | sudo tee /etc/systemd/system/jobfinder.service
+# Check the result on the server with: systemd-analyze security jobfinder
+[Unit]
+Description=JobSpy
+After=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__DIR__
+EnvironmentFile=-__DIR__/.env
+ExecStart=__DIR__/.venv/bin/python -m jobfinder
+Restart=always
+Nice=10
+
+# Sandbox: even if the app were compromised it can only write to its own data folder.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=__DIR__/data
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

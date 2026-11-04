@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block body %}
+{% if msg %}<p class="small">{{ msg }}</p>{% endif %}
+<div class="card">
+  <div class="row"><h3 class="grow">Scanner</h3>
+  <form method="post" action="/scan/run"><button class="primary" {{ 'disabled' if state.running }}>{{ 'Running…' if state.running else 'Scan now' }}</button></form></div>
+  <p class="mut" id="st">{% if state.running %}Scanning: {{ state.message }} ({{ (state.progress * 100)|int }}%){% else %}Idle.{% endif %}</p>
+  <table><tr><th>Started (UTC)</th><th>New</th><th>Seen</th><th></th></tr>
+  {% for s in scans %}<tr><td>{{ s.started[:16]|replace('T',' ') }}</td><td>{{ s.added }}</td><td>{{ s.seen }}</td>
+    <td class="small">{% if not s.finished %}<span class="mut">interrupted</span>{% elif s.errors %}<details><summary class="err">{{ s.errors.count('\n') + 1 }} errors</summary><pre style="white-space:pre-wrap;margin:6px 0 0" class="mut">{{ s.errors }}</pre></details>{% endif %}</td></tr>{% endfor %}
+  </table>
+</div>
+<div class="card">
+  <div class="row"><h3 class="grow" style="margin:0">Discord alerts</h3>
+  {% if discord %}<form method="post" action="/scan/test-alert"><button class="small">Send test</button></form>{% endif %}</div>
+  <p class="mut small" style="margin-bottom:0">{% if discord %}On. After each scan, new jobs at {{ min_match }}%+ match are posted once. Reminders of pending applications go out daily at {{ reminder_times|join(', ') }} ({{ reminder_tz }}) when your To apply list isn't empty.{% else %}Off. Set DISCORD_WEBHOOK_URL in .env and restart.{% endif %}</p>
+</div>
+<form class="card" method="post" action="/scan/config">
+  <h3>Settings</h3>
+  <label><input type="checkbox" name="enabled" {{ 'checked' if cfg.enabled }}> Scan automatically</label>
+  <label>Every (hours)</label><input name="interval_hours" value="{{ cfg.interval_hours }}" style="max-width:120px">
+  <label>Cities</label><div class="checks">{% for c in CITIES %}<label><input type="checkbox" name="cities" value="{{ c }}" {{ 'checked' if c in cfg.cities }}>{{ c }}</label>{% endfor %}</div>
+  <label>Sites</label><div class="checks">{% for s in SITES %}<label><input type="checkbox" name="sites" value="{{ s }}" {{ 'checked' if s in cfg.sites }}>{{ s }}</label>{% endfor %}</div>
+  <label>Search terms</label><div class="checks">{% for q in all_queries %}<label><input type="checkbox" name="queries" value="{{ q }}" {{ 'checked' if q in cfg.queries }}>{{ q }}</label>{% endfor %}</div>
+  <label>More terms (one per line)</label><textarea name="extra" rows="2"></textarea>
+  <div class="row"><div><label>Results per search</label><input name="results" value="{{ cfg.results }}" style="width:100px"></div>
+  <div><label>First-scan lookback (days)</label><input name="days" value="{{ cfg.days }}" style="width:100px"></div></div>
+  <label><input type="checkbox" name="full_descriptions" {{ 'checked' if cfg.full_descriptions }}> Fetch full descriptions (slower, needed for skills)</label>
+  <p><button class="primary">Save settings</button></p>
+</form>
+{% if state.running %}<script>setTimeout(() => location.reload(), 5000)</script>{% endif %}
+{% endblock %}
