@@ -44,7 +44,7 @@ def test_login_rejects_bad_credentials():
 
 
 def test_every_page_renders_empty_and_seeded(authed):
-    paths = ["/", "/saved", "/saved?status=applied", "/saved?status=bogus", "/analysis", "/profile", "/scan", "/saved.csv", "/scan/status"]
+    paths = ["/", "/saved", "/saved?status=applied", "/saved?status=research", "/saved?status=bogus", "/analysis", "/profile", "/scan", "/saved.csv", "/scan/status"]
     for p in paths:
         assert authed.get(p).status_code == 200, p
     seed()
@@ -108,3 +108,32 @@ def test_scan_config_is_clamped_and_saved(authed):
     con.close()
     assert cfg["cities"] == ["Pune"] and cfg["interval_hours"] == 0.25 and cfg["results"] == 100 and cfg["days"] == 1
     assert cfg["queries"] == ["SDE 1", "go dev"]
+
+
+def test_scan_page_labels_the_active_scan_running_and_older_unfinished_ones_interrupted(authed, monkeypatch):
+    from jobfinder.web import scheduler
+    con = store.connect()
+    con.execute("INSERT INTO scans (started) VALUES ('2026-11-04T21:21:00')")
+    con.execute("INSERT INTO scans (started) VALUES ('2026-11-04T21:53:00')")
+    con.commit()
+    con.close()
+    monkeypatch.setitem(scheduler.state, "running", True)
+    page = authed.get("/scan").text
+    assert page.count("running</span>") == 1 and page.count("interrupted</span>") == 1
+    assert page.index("21:53") < page.index("running</span>") < page.index("21:21") < page.index("interrupted</span>")
+    monkeypatch.setitem(scheduler.state, "running", False)
+    assert authed.get("/scan").text.count("interrupted</span>") == 2
+
+
+def test_research_action_files_job_under_research_not_to_apply(authed):
+    seed()
+    url = "https://example.com/job/0"
+    assert authed.post("/swipe", data={"url": url, "action": "research"}, follow_redirects=False).status_code == 303
+    assert "Python Developer" in authed.get("/saved?status=research").text
+    assert "Python Developer" not in authed.get("/saved").text            # not in the apply queue
+    assert store.counts(store.connect())["research"] == 1
+    authed.post("/undo")
+    assert "Python Developer" not in authed.get("/saved?status=research").text
+    authed.post("/swipe", data={"url": url, "action": "research"})
+    authed.post("/job/status", data={"url": url, "status": "saved"})      # promote to apply
+    assert "Python Developer" in authed.get("/saved").text

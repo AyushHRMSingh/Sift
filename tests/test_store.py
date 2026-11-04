@@ -32,7 +32,7 @@ def test_status_and_undo_last_swipe(con):
     store.set_status(con, "https://example.com/job/0", "saved", swipe=True)
     store.set_status(con, "https://example.com/job/1", "rejected", swipe=True)
     assert store.undo_last_swipe(con) == "https://example.com/job/1"
-    assert store.counts(con) == {"new": 1, "saved": 1, "applied": 0, "rejected": 0}
+    assert store.counts(con) == {"new": 1, "saved": 1, "research": 0, "applied": 0, "rejected": 0}
     assert store.undo_last_swipe(con) == "https://example.com/job/0"
     assert store.undo_last_swipe(con) is None
 

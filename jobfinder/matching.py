@@ -16,7 +16,7 @@ class Profile:
 
 def ranked(df: pd.DataFrame, profile: Profile, hide_senior_exp: bool = True) -> pd.DataFrame:
     if settings.STALE_DAYS and len(df):  # posted date, or first seen when the board gave none
-        age = df["date_posted"].fillna(pd.to_datetime(df["first_seen"], utc=True).dt.tz_localize(None))
+        age = df["date_posted"].fillna(pd.to_datetime(df["first_seen"], format="ISO8601", utc=True).dt.tz_localize(None))
         df = df[age >= pd.Timestamp.now("UTC").tz_localize(None) - pd.Timedelta(days=settings.STALE_DAYS)]
     df = skills.add_match(df, profile.skills, profile.years)
     if hide_senior_exp and profile.years is not None:

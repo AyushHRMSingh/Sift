@@ -155,7 +155,7 @@ def swipe_page(request: Request):
 
 @app.post("/swipe")
 def swipe(bg: BackgroundTasks, url: str = Form(...), action: str = Form(...)):
-    status = {"save": "saved", "pass": "rejected"}.get(action)
+    status = {"save": "saved", "research": "research", "pass": "rejected"}.get(action)
     if not status:
         return Response(status_code=400)
     con = store.connect()
@@ -179,6 +179,9 @@ def undo():
 
 
 # ------------------------------------------------------------------ saved list
+LISTS = ("saved", "research", "applied", "rejected")
+
+
 def _list(status: str) -> pd.DataFrame:
     con = store.connect()
     try:
@@ -191,14 +194,14 @@ def _list(status: str) -> pd.DataFrame:
 
 @app.get("/saved", response_class=HTMLResponse)
 def saved(request: Request, status: str = "saved"):
-    if status not in ("saved", "applied", "rejected"):
+    if status not in LISTS:
         status = "saved"
     return render(request, "saved.html", jobs=_list(status).to_dict("records"), status=status)
 
 
 @app.get("/saved.csv")
 def saved_csv(status: str = "saved"):
-    df = _list(status if status in ("saved", "applied", "rejected") else "saved")
+    df = _list(status if status in LISTS else "saved")
     out = df.assign(skills=df["skills"].map(", ".join), missing=df["missing"].map(", ".join))[
         ["title", "company", "search_city", "match_%", "exp_min", "exp_max", "date_posted", "skills", "missing", "job_url"]]
     return Response(out.to_csv(index=False), media_type="text/csv",

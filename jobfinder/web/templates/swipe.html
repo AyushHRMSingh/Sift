@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "icons.html" import icon %}
 {% block body %}
+<style>@media (max-width: 520px) { .lbl { display: none } }</style>
 {% if not job %}
   <div style="padding:14vh 0 0"><h2 class="title">All caught up</h2>
   <p class="mut">New jobs arrive with the hourly scan.</p>
@@ -37,6 +38,8 @@
       <button id="pass" style="width:100%;justify-content:center">{{ icon("x") }} Pass</button></form>
     <form method="post" action="/undo"><button id="undo" title="Undo" aria-label="Undo" {{ '' if can_undo else 'disabled' }}>{{ icon("undo") }}</button></form>
     <a class="btn" href="{{ job.job_url|safe_url }}" target="_blank" rel="noopener noreferrer" aria-label="Open posting">{{ icon("ext") }}</a>
+    <form method="post" action="/swipe" data-dir="up"><input type="hidden" name="url" value="{{ job.job_url }}"><input type="hidden" name="action" value="research">
+      <button id="research" title="Save for research (up arrow)" aria-label="Save for research">{{ icon("search") }}<span class="lbl">Research</span></button></form>
     <form method="post" action="/swipe" class="grow" data-dir="right"><input type="hidden" name="url" value="{{ job.job_url }}"><input type="hidden" name="action" value="save">
       <button id="save" class="save" style="width:100%;justify-content:center">{{ icon("star") }} Save</button></form>
   </div>
@@ -49,14 +52,14 @@ function fling(form, dir) {
   if (form.dataset.busy) return; form.dataset.busy = 1;
   if (still) return form.submit();
   card.style.transition = ease;
-  card.style.transform = `translateX(${dir === 'right' ? 120 : -120}px) rotate(${dir === 'right' ? 4 : -4}deg)`; card.style.opacity = 0;
+  card.style.transform = dir === 'up' ? 'translateY(-80px)' : `translateX(${dir === 'right' ? 120 : -120}px) rotate(${dir === 'right' ? 4 : -4}deg)`; card.style.opacity = 0;
   setTimeout(() => form.submit(), 200);
 }
 document.querySelectorAll('form[data-dir]').forEach(f => f.addEventListener('submit', e => { e.preventDefault(); fling(f, f.dataset.dir); }));
 const click = id => { const b = document.getElementById(id); if (b && !b.disabled) b.click(); };
 addEventListener('keydown', e => {
   if (e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey) return;
-  if (e.key === 'ArrowLeft') click('pass'); else if (e.key === 'ArrowRight') click('save'); else if (e.key === 'ArrowDown' || e.key === 'u') click('undo');
+  if (e.key === 'ArrowLeft') click('pass'); else if (e.key === 'ArrowRight') click('save'); else if (e.key === 'ArrowUp') { e.preventDefault(); click('research'); } else if (e.key === 'ArrowDown' || e.key === 'u') click('undo');
 });
 let x0 = null, y0 = null, dragging = false;
 card.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dragging = false; card.style.transition = 'none'; }, {passive:true});

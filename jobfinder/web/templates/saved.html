@@ -3,13 +3,13 @@
 {% block body %}
 <div class="row" style="margin-bottom:6px">
   <div class="tabs grow" style="margin-bottom:0">
-    {% for s, label in [('saved','To apply'),('applied','Applied'),('rejected','Passed')] %}
+    {% for s, label in [('saved','To apply'),('research','Research'),('applied','Applied'),('rejected','Passed')] %}
       <a class="{{ 'on' if status == s }}" href="/saved?status={{ s }}">{{ label }} <span class="num mut">{{ counts[s] }}</span></a>
     {% endfor %}
   </div>
   <a class="mut small" href="/saved.csv?status={{ status }}">Export CSV</a>
 </div>
-{% if not jobs %}<p class="mut" style="padding-top:12vh">Nothing here yet. Swipe right on jobs you like.</p>{% endif %}
+{% if not jobs %}<p class="mut" style="padding-top:12vh">{{ 'Nothing to research. Use the research button or up arrow while swiping.' if status == 'research' else 'Nothing here yet. Swipe right on jobs you like.' }}</p>{% endif %}
 {% for j in jobs %}
 <div class="card">
   <div class="row" style="align-items:flex-start;flex-wrap:nowrap">
@@ -20,7 +20,7 @@
   {% if j.missing %}<div style="margin-top:8px">{% for s in j.missing %}<span class="tag miss">{{ s }}</span>{% endfor %}</div>{% endif %}
   <div class="row" style="margin-top:12px">
     <a class="btn primary" href="{{ j.job_url|safe_url }}" target="_blank" rel="noopener noreferrer">Apply {{ icon("ext") }}</a>
-    {% for s, label in [('applied','Mark applied'),('saved','Move to saved'),('new','Back to inbox'),('rejected','Pass')] if s != status %}
+    {% for s, label in [('applied','Mark applied'),('saved','Move to apply'),('research','Move to research'),('new','Back to inbox'),('rejected','Pass')] if s != status %}
       <form method="post" action="/job/status"><input type="hidden" name="url" value="{{ j.job_url }}"><input type="hidden" name="status" value="{{ s }}"><button class="link small {{ 'danger' if s == 'rejected' }}">{{ label }}</button></form>
     {% endfor %}
   </div>

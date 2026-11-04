@@ -13,7 +13,7 @@ from .skills import extract
 DB_PATH = settings.DATA_DIR / "jobs.db"
 COLS = ["job_url", "title", "company", "location", "site", "date_posted", "job_type", "job_level",
         "min_amount", "max_amount", "currency", "description", "search_city", "search_term"]
-STATUSES = ("new", "saved", "applied", "rejected")
+STATUSES = ("new", "saved", "research", "applied", "rejected")
 
 SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS jobs (
