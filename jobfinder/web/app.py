@@ -1,7 +1,6 @@
 import asyncio
 import io
 import logging
-import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -11,38 +10,22 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .. import matching, settings, sinks, skills, store
+from .. import matching, resume_check, settings, sinks, skills, store
 from ..analysis import analyze
 from ..config import CITIES, QUERIES, SITES
-from . import auth, scheduler, security
+from . import api, auth, filters, scheduler, security
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
-OPEN_PATHS = {"/login", "/healthz", "/robots.txt"}
+OPEN_PATHS = {"/login", "/api/login", "/healthz", "/robots.txt", "/manifest.webmanifest", "/icon.svg"}
 logging.basicConfig(level=logging.INFO)
 
 
-def safe_url(u):
-    return u if urlparse(u or "").scheme in ("http", "https") else "#"
-
-
-templates.env.filters["safe_url"] = safe_url
-def plain(text):
-    """Scraped descriptions carry markdown; show them as clean text."""
-    text = re.sub(r"\*\*|__|\\", "", text or "")
-    return re.sub(r"(?m)^(\s*)[*+-]\s+", r"\1- ", text)
-
-
-def money(v):
-    try:
-        return f"{float(v):,.0f}"
-    except (TypeError, ValueError):
-        return str(v)
-
-
-templates.env.filters["plain"] = plain
-templates.env.filters["money"] = money
+templates.env.filters["safe_url"] = filters.safe_url
+templates.env.filters["plain"] = filters.plain
+templates.env.filters["money"] = filters.money
 templates.env.filters["date"] = lambda v: v.strftime("%d %b") if pd.notna(v) else ""
 
 
@@ -63,6 +46,7 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+app.include_router(api.router)
 
 
 @app.middleware("http")
@@ -80,6 +64,10 @@ app.middleware("http")(security.harden)  # outside require_login, so floods are 
 # added last = outermost, so the session is available to the middleware above
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY, https_only=settings.SECURE_COOKIES,
                    same_site="lax", max_age=60 * 60 * 24 * 14, session_cookie="jf_session")
+if settings.PUBLIC_URL:  # refuse forged Host headers once the real hostname is known
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=[urlparse(settings.PUBLIC_URL).hostname,
+                                                             "localhost", "127.0.0.1", "[::1]"])
+app.add_middleware(security.BodyLimit)
 
 
 def render(request: Request, name: str, **ctx):
@@ -103,6 +91,20 @@ def back(request: Request, default="/"):
 @app.get("/robots.txt")
 def robots():
     return Response("User-agent: *\nDisallow: /\n", media_type="text/plain")
+
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    return JSONResponse({"name": "JobSpy", "short_name": "JobSpy", "start_url": "/", "display": "standalone",
+                         "background_color": "#f3f1ec", "theme_color": "#f3f1ec",
+                         "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
+                        media_type="application/manifest+json")
+
+
+@app.get("/icon.svg")
+def icon():
+    return Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" '
+                    'fill="#1a1917"/><circle cx="32" cy="32" r="12" fill="#c8452c"/></svg>', media_type="image/svg+xml")
 
 
 @app.get("/healthz")
@@ -189,7 +191,7 @@ def _list(status: str) -> pd.DataFrame:
         df = skills.add_match(store.load(con, status, description=False), prof.skills, prof.years)
     finally:
         con.close()
-    return df.sort_values(["match_%", "date_posted"], ascending=False, na_position="last")
+    return df.assign(_day=matching.posted_day(df)).sort_values(["_day", "match_%"], ascending=False, na_position="last").drop(columns="_day")
 
 
 @app.get("/saved", response_class=HTMLResponse)
@@ -244,23 +246,56 @@ def profile_page(request: Request, msg: str = ""):
     return render(request, "profile.html", prof=prof, all_skills=list(skills.SKILLS), msg=msg)
 
 
-@app.post("/profile/resume")
-async def upload_resume(file: UploadFile = File(...)):
+async def _ingest_resume(file: UploadFile) -> tuple[list[str] | None, str]:
+    """Validate and store an uploaded resume: profile text, skills, and the ATS-check report."""
     data = await file.read(5 * 1024 * 1024 + 1)
     if len(data) > 5 * 1024 * 1024 or not data.startswith(b"%PDF"):
-        return RedirectResponse("/profile?msg=Upload+a+PDF+under+5MB", 303)
+        return None, "Upload a PDF under 5MB"
     try:
         text = skills.pdf_text(io.BytesIO(data))
+        report = resume_check.analyse(resume_check.read_pdf(data))
     except Exception:
-        return RedirectResponse("/profile?msg=Could+not+read+that+PDF", 303)
+        return None, "Could not read that PDF"
     found = sorted(skills.extract(text))
     con = store.connect()
     try:
         store.save_profile(con, text, found)
         store.set_kv(con, "years", None)
+        store.set_kv(con, "resume_report", report)
     finally:
         con.close()
-    return RedirectResponse(f"/profile?msg=Parsed+{len(found)}+skills", 303)
+    return found, ""
+
+
+@app.post("/profile/resume")
+async def upload_resume(file: UploadFile = File(...)):
+    found, err = await _ingest_resume(file)
+    return RedirectResponse(f"/profile?msg={quote(err or f'Parsed {len(found)} skills')}", 303)
+
+
+# ------------------------------------------------------------------ resume check
+def resume_view() -> dict | None:
+    con = store.connect()
+    try:
+        rep = store.get_kv(con, "resume_report")
+        if not rep:
+            return None
+        prof = matching.Profile(con)
+        mkt = resume_check.market(store.load(con, description=True), set(prof.skills), prof.years)
+    finally:
+        con.close()
+    return {**rep, "market": mkt, "score": resume_check.overall(rep["notes"], mkt)}
+
+
+@app.get("/resume", response_class=HTMLResponse)
+def resume_page(request: Request, msg: str = ""):
+    return render(request, "resume.html", r=resume_view(), msg=msg)
+
+
+@app.post("/resume/upload")
+async def resume_upload(file: UploadFile = File(...)):
+    found, err = await _ingest_resume(file)
+    return RedirectResponse(f"/resume?msg={quote(err)}" if err else "/resume", 303)
 
 
 @app.post("/profile/skills")
@@ -283,7 +318,7 @@ def scan_page(request: Request, msg: str = ""):
     con = store.connect()
     try:
         return render(request, "scan.html", cfg=scheduler.get_config(con), scans=store.recent_scans(con),
-                      state=scheduler.state, msg=msg, discord=bool(settings.DISCORD_WEBHOOK_URL), min_match=settings.DISCORD_MIN_MATCH, reminder_times=settings.REMINDER_TIMES, reminder_tz=settings.REMINDER_TZ, all_queries=sorted(set(QUERIES) | set(scheduler.get_config(con)["queries"])),
+                      state=scheduler.state, msg=msg, discord=bool(settings.DISCORD_WEBHOOK_URL), reminder_times=settings.REMINDER_TIMES, reminder_tz=settings.REMINDER_TZ, all_queries=sorted(set(QUERIES) | set(scheduler.get_config(con)["queries"])),
                       CITIES=CITIES, SITES=SITES)
     finally:
         con.close()
@@ -315,15 +350,22 @@ async def scan_run():
 @app.post("/scan/config")
 async def scan_config(request: Request):
     f = await request.form()
-    extra = [q.strip() for q in str(f.get("extra", "")).splitlines() if q.strip()]
+    extra = [q.strip()[:80] for q in str(f.get("extra", "")).splitlines() if q.strip()]
+
+    def num(key, default, lo, hi):
+        try:
+            return min(hi, max(lo, float(f.get(key) or default)))
+        except ValueError:
+            return default
+
     cfg = {
         "enabled": f.get("enabled") == "on",
-        "interval_hours": max(0.25, float(f.get("interval_hours") or 1)),
-        "queries": list(dict.fromkeys(f.getlist("queries") + extra)),
+        "interval_hours": num("interval_hours", 1, 0.25, 168),
+        "queries": list(dict.fromkeys(q[:80] for q in f.getlist("queries") + extra))[:20],
         "cities": [c for c in f.getlist("cities") if c in CITIES],
         "sites": [s for s in f.getlist("sites") if s in SITES],
-        "results": min(100, max(5, int(f.get("results") or 30))),
-        "days": min(30, max(1, int(f.get("days") or 7))),
+        "results": int(num("results", 30, 5, 100)),
+        "days": int(num("days", 7, 1, 30)),
         "full_descriptions": f.get("full_descriptions") == "on",
     }
     con = store.connect()

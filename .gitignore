@@ -7,3 +7,6 @@ data/
 *.db-*
 .DS_Store
 .claude/
+
+# phone app lives in its own repo
+/app/

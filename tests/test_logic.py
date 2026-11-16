@@ -60,3 +60,17 @@ def test_ranked_copes_with_mixed_timestamp_formats_in_first_seen(con):
     store.save_profile(con, "", ["Python"])
     out = matching.ranked(store.load(con, "new", description=False), matching.Profile(con))
     assert sorted(out["title"]) == ["Recent Micro", "Recent Seconds"]
+
+
+def test_ranked_puts_fresh_postings_first_then_best_match(con):
+    import pandas as pd
+    from jobfinder import matching
+    today = pd.Timestamp.now().normalize()
+    store.upsert(con, make_jobs(
+        {"job_url": "https://x/old-great", "company": "A", "date_posted": today - pd.Timedelta(days=3), "description": "Python Django " * 10},
+        {"job_url": "https://x/new-weak", "company": "B", "date_posted": today, "description": "Java Spring " * 10},
+        {"job_url": "https://x/new-great", "company": "C", "date_posted": today, "description": "Python Django " * 10},
+    ))
+    store.save_profile(con, "", ["Python", "Django"])
+    order = matching.ranked(store.load(con, "new", description=False), matching.Profile(con))["job_url"].tolist()
+    assert order == ["https://x/new-great", "https://x/new-weak", "https://x/old-great"]

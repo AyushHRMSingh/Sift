@@ -137,3 +137,25 @@ def test_research_action_files_job_under_research_not_to_apply(authed):
     authed.post("/swipe", data={"url": url, "action": "research"})
     authed.post("/job/status", data={"url": url, "status": "saved"})      # promote to apply
     assert "Python Developer" in authed.get("/saved").text
+
+
+def test_api_queue_swipe_and_stale_check(client):
+    import pandas as pd  # noqa: F401
+    con = store.connect()
+    store.upsert(con, make_jobs({"job_url": "https://x/1"}, {"job_url": "https://x/2", "title": "Java Developer"}))
+    con.close()
+    assert client.post("/api/queue", json={}).status_code == 401
+    assert client.post("/api/login", json={"username": "admin", "password": "nope"}).status_code == 401
+    assert client.post("/api/login", json={"username": "admin", "password": "test-pass"}).status_code == 200
+    q = client.post("/api/queue", json={"limit": 5}).json()
+    urls = [j["url"] for j in q["jobs"]]
+    assert sorted(urls) == ["https://x/1", "https://x/2"] and q["left"] == 2
+    assert {"title", "description", "skills", "match", "missing"} <= set(q["jobs"][0])
+    assert client.post("/api/queue", json={"exclude": urls[:1]}).json()["jobs"][0]["url"] == urls[1]
+    # swipe one on the "phone"; another is filed on the web meanwhile -> reported stale
+    con = store.connect(); store.set_status(con, urls[1], "saved"); con.close()
+    r = client.post("/api/swipe", json={"url": urls[0], "action": "pass", "held": urls}).json()
+    assert r["ok"] and set(r["stale"]) == set(urls) and r["left"] == 0
+    r = client.post("/api/swipe", json={"url": urls[0], "action": "undo", "held": urls}).json()
+    assert r["stale"] == [urls[1]] and r["left"] == 1
+    assert client.post("/api/swipe", json={"url": urls[0], "action": "bogus"}).status_code == 400

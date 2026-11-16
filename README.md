@@ -13,10 +13,13 @@ sudo systemctl daemon-reload && sudo systemctl enable --now jobfinder
 Listens on `127.0.0.1:48213`. Point Nginx / cloudflared at it, e.g. `cloudflared tunnel --url http://localhost:48213`.
 Serve over HTTPS (session cookie is Secure). For plain-http local testing set `SECURE_COOKIES=0`.
 
-See `.env.example`. Discord alerts: set `DISCORD_WEBHOOK_URL` (Server Settings > Integrations > Webhooks); new jobs at `DISCORD_MIN_MATCH`% or better (default 70) are posted once after each scan. It also posts a daily reminder of how many saved applications are pending, at `REMINDER_TIMES` (default 18:30 and 20:30) in `REMINDER_TZ` (default Asia/Kolkata); nothing is sent when the queue is empty.
+See `.env.example`. Discord alerts: set `DISCORD_WEBHOOK_URL` (Server Settings > Integrations > Webhooks); it posts one digest twice a day, at `REMINDER_TIMES` (default 18:30 and 20:30) in `REMINDER_TZ` (default Asia/Kolkata): how many jobs are waiting to apply and how many are left in the swipe queue. Nothing is sent per new job, or when both counts are zero.
 
 Env: `PORT`, `HOST`, `APP_USER` (default admin), `APP_PASSWORD`, `DATA_DIR` (default `./data`), `SINKS` (e.g. `jsonl`).
 Data (SQLite, secrets) lives in `data/`. Back it up by copying that folder.
+
+## Reset
+Stop the service, then `python -m jobfinder reset` (type `wipe` to confirm). It deletes jobs, scans and your profile, keeps the login, and leaves a copy in `data/backups/`. Add `--purge` to delete the backups too. The first scan after a reset sends no Discord alerts for the backlog.
 
 ## Layout
 `jobfinder/web` routes + templates + scheduler, `scan.py` scraping, `store.py` SQLite, `skills.py`/`experience.py`/`matching.py` analysis, `sinks/` export plugins (Google Sheets stub in `sinks/sheets.py`).
@@ -25,6 +28,7 @@ Data (SQLite, secrets) lives in `data/`. Back it up by copying that folder.
 Built for a single user on a public URL. What is in place:
 - **Login:** scrypt-hashed password supported (`python -m jobfinder hash-password`, put the output in `.env` as `APP_PASSWORD_HASH`). Five failed attempts per client per 10 minutes locks that client out; a bot cannot lock you out.
 - **Bots and scrapers:** everything except `/login`, `/healthz` and `/robots.txt` needs a session. Anonymous clients are rate limited (40 requests/min), `robots.txt` disallows all, and responses carry `noindex`.
+- **Requests:** bodies are capped by bytes received (chunked uploads included), and when `PUBLIC_URL` is set, requests with a forged `Host` header are refused.
 - **Browser protections:** strict CSP with per-request nonces (no inline script without it), cross-site POSTs refused, `SameSite=Lax` + `HttpOnly` + `Secure` cookie, HSTS, `no-store`, no framing.
 - **Input:** all SQL is parameterized, scraped text is escaped and links are scheme-checked, uploads are capped (5MB, 25 pages) and must start with `%PDF`, webhook URLs must be real Discord hosts, and the app never fetches user-supplied URLs.
 - **Process:** runs as an unprivileged user in a systemd sandbox that can only write `data/`. It binds to loopback only; expose it through Cloudflare Tunnel or Nginx.

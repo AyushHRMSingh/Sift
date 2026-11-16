@@ -25,24 +25,6 @@ def test_rejects_non_discord_urls(monkeypatch, bad):
         discord.DiscordSink()
 
 
-def test_alerts_strong_matches_once_and_caps_embeds(con, hook):
-    strong = "Python Django SQL Git Docker"
-    store.upsert(con, make_jobs(*[{"title": f"Python Developer {i}", "company": f"Co{i}", "description": strong * 3} for i in range(12)],
-                                {"title": "Java Developer", "company": "Weak", "description": "Java Spring AWS Docker Kubernetes Kafka"}))
-    store.save_profile(con, "", ["Python", "Django", "SQL", "Git"])
-    assert sinks.active_sinks()
-    assert scheduler.alert_new_matches(con) == 12
-    msg = hook[0]
-    assert len(msg["embeds"]) == 10 and "12 new jobs" in msg["content"] and "showing the top 10" in msg["content"]
-    assert msg["allowed_mentions"] == {"parse": []} and msg["embeds"][0]["url"].startswith("https://example.com/job/")
-    assert scheduler.alert_new_matches(con) == 0 and len(hook) == 1  # never repeats
-
-
-def test_no_alert_without_profile(con, hook):
-    store.upsert(con, make_jobs({"description": "Python Django SQL Git Docker " * 3}))
-    assert scheduler.alert_new_matches(con) == 0 and not hook
-
-
 IST = ZoneInfo("Asia/Kolkata")
 
 
@@ -61,16 +43,27 @@ def test_due_slots_fire_once_inside_grace_window():
     assert scheduler.due_slots(at(20, 31), {}, ["bogus", "20:30"]) == ["20:30"]
 
 
-def test_reminder_sends_count_once_and_stays_quiet_when_empty(con, hook, monkeypatch):
+def test_digest_reports_to_apply_and_queue_once_per_slot_and_stays_quiet_when_empty(con, hook, monkeypatch):
     texts = []
     monkeypatch.setattr(discord, "_post", lambda url, body: texts.append(body["content"]))
     monkeypatch.setattr(settings, "REMINDER_TIMES", ["18:30"])
-    assert scheduler.send_reminders(con, at(18, 30)) == []  # nothing saved yet
+    assert scheduler.send_reminders(con, at(18, 30)) == []  # nothing anywhere yet
     assert texts == []
-    store.upsert(con, make_jobs({}, {"title": "Backend Developer"}))
-    store.set_status(con, "https://example.com/job/0", "saved")
-    store.set_status(con, "https://example.com/job/1", "saved")
+    store.upsert(con, make_jobs({"company": "A"}, {"company": "B", "title": "Backend Developer"}, {"company": "C", "title": "Java Developer"}))
+    urls = store.load(con, "new", description=False)["job_url"].tolist()
+    store.set_status(con, urls[0], "saved")
+    store.set_status(con, urls[1], "saved")
     assert scheduler.send_reminders(con, at(18, 31)) == []  # slot already consumed today
     assert scheduler.send_reminders(con, datetime(2026, 11, 6, 18, 31, tzinfo=IST)) == ["18:30"]
-    assert texts[0].startswith("2 applications pending in your queue.") and texts[0].endswith("/saved")
+    assert texts[0] == "2 to apply: https://jobs.example.com/saved\n1 in the swipe queue: https://jobs.example.com/"
     assert scheduler.send_reminders(con, datetime(2026, 11, 6, 18, 32, tzinfo=IST)) == [] and len(texts) == 1
+
+
+def test_scan_never_sends_per_job_alerts(con, hook, monkeypatch):
+    store.upsert(con, make_jobs({"job_url": "https://x/1"}))
+    store.save_profile(con, "", ["Python"])
+    monkeypatch.setattr(scheduler, "run_scan", lambda *a, **k: {})
+    scheduler.run_now()
+    store.upsert(con, make_jobs({"job_url": "https://x/2", "company": "Other"}))
+    scheduler.run_now()
+    assert hook == []

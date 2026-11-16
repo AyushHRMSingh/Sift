@@ -1,4 +1,4 @@
-"""Discord webhook alerts: new strong matches after each scan. Configure with DISCORD_WEBHOOK_URL in .env."""
+"""Discord webhook: a twice-daily digest of what is waiting. Configure with DISCORD_WEBHOOK_URL in .env."""
 import json
 import logging
 import time
@@ -11,7 +11,6 @@ from . import Sink, register
 
 log = logging.getLogger("jobfinder.discord")
 HOSTS = {"discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com"}
-MAX_EMBEDS = 10  # Discord's per-message limit
 
 
 def _post(url: str, body: dict) -> None:
@@ -28,17 +27,6 @@ def _post(url: str, body: dict) -> None:
             raise
 
 
-def embed(job: dict) -> dict:
-    facts = [job.get("company") or "", job.get("search_city") or "", f"{int(job['match_%'])}% match"]
-    if job.get("exp_min") == job.get("exp_min") and job.get("exp_min") is not None:
-        facts.append(f"{job['exp_min']:g}-{job['exp_max']:g} yrs")
-    out = {"title": (job.get("title") or "Job")[:250], "url": job["job_url"],
-           "description": " | ".join(f for f in facts if f)}
-    if job.get("missing"):
-        out["footer"] = {"text": ("Missing: " + ", ".join(job["missing"]))[:200]}
-    return out
-
-
 @register
 class DiscordSink(Sink):
     name = "discord"
@@ -52,20 +40,13 @@ class DiscordSink(Sink):
     def push_saved(self, job: dict) -> None:
         pass  # alerts are about new matches, not your own actions
 
-    def push_scan(self, jobs: list[dict]) -> None:
-        head = jobs[:MAX_EMBEDS]
-        text = f"{len(jobs)} new job{'s' if len(jobs) != 1 else ''} at {settings.DISCORD_MIN_MATCH}%+ match"
-        if len(jobs) > len(head):
-            text += f" (showing the top {len(head)})"
-        if settings.PUBLIC_URL:
-            text += f"\n{settings.PUBLIC_URL}/"
-        _post(self.url, {"content": text, "embeds": [embed(j) for j in head], "allowed_mentions": {"parse": []}})
-
-    def push_reminder(self, pending: int) -> None:
-        text = f"{pending} application{'s' if pending != 1 else ''} pending in your queue."
-        if settings.PUBLIC_URL:
-            text += f"\n{settings.PUBLIC_URL}/saved"
-        _post(self.url, {"content": text, "allowed_mentions": {"parse": []}})
+    def push_reminder(self, counts: dict) -> None:
+        lines = []
+        if counts["saved"]:
+            lines.append(f"{counts['saved']} to apply: {settings.PUBLIC_URL}/saved" if settings.PUBLIC_URL else f"{counts['saved']} to apply")
+        if counts["queue"]:
+            lines.append(f"{counts['queue']} in the swipe queue: {settings.PUBLIC_URL}/" if settings.PUBLIC_URL else f"{counts['queue']} in the swipe queue")
+        _post(self.url, {"content": "\n".join(lines), "allowed_mentions": {"parse": []}})
 
     def test(self) -> None:
         _post(self.url, {"content": "JobSpy test message: alerts are connected.", "allowed_mentions": {"parse": []}})

@@ -33,7 +33,7 @@ def parse_experience(text: str, today: date | None = None) -> dict:
         tail = re.sub(r"^\s*\(\d+\s*months?\)\s*", "", tail, flags=re.I)
         title = re.split(r"[|●•]", tail)[0].strip()
         if re.search(ROLE_WORDS, title, re.I) and len(title) < 80:
-            roles.append({"title": title, "from": m.group(0).split("–")[0].strip(),
+            roles.append({"title": title, "from": re.split(r"\s*[-–—]\s*", m.group(0))[0],
                           "to": "present" if m.group(5) else f"{m.group(3)} {m.group(4)}"})
     months, last = 0, None
     for s, e in sorted(spans):

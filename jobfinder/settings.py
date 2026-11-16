@@ -28,7 +28,6 @@ USERNAME = os.environ.get("APP_USER", "admin")
 PASSWORD_HASH = os.environ.get("APP_PASSWORD_HASH", "")   # preferred over APP_PASSWORD; make one with: python -m jobfinder hash-password
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")            # used for links in alerts
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
-DISCORD_MIN_MATCH = int(os.environ.get("DISCORD_MIN_MATCH", 70))
 REMINDER_TIMES = [t.strip() for t in os.environ.get("REMINDER_TIMES", "18:30,20:30").split(",") if t.strip()]
 REMINDER_TZ = os.environ.get("REMINDER_TZ", "Asia/Kolkata")
 STALE_DAYS = int(os.environ.get("STALE_DAYS", 30))                    # hide swipe/alert candidates posted longer ago

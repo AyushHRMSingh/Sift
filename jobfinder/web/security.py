@@ -41,6 +41,30 @@ class Limiter:
 anon_limiter, user_limiter = Limiter(40), Limiter(300)
 
 
+class BodyLimit:
+    """Cap request bodies by bytes actually received, so chunked uploads can't skip the
+    Content-Length check."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        total = 0
+
+        async def limited():
+            nonlocal total
+            msg = await receive()
+            if msg["type"] == "http.request":
+                total += len(msg.get("body", b""))
+                if total > MAX_BODY:
+                    return {"type": "http.disconnect"}
+            return msg
+
+        await self.app(scope, limited, send)
+
+
 def origin_ok(request: Request) -> bool:
     """State-changing requests must come from this site. Requests with no Origin (curl, old browsers)
     are covered by the SameSite cookie."""
@@ -55,7 +79,7 @@ def origin_ok(request: Request) -> bool:
 
 def add_headers(response, nonce: str | None = None):
     csp = ("default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
-           "form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+           "form-action 'self'; frame-ancestors 'none'; base-uri 'none'; manifest-src 'self'")
     if nonce:
         csp += f"; script-src 'nonce-{nonce}'"
     h = response.headers
@@ -65,6 +89,7 @@ def add_headers(response, nonce: str | None = None):
     h["Referrer-Policy"] = "same-origin"
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
     h["Cross-Origin-Opener-Policy"] = "same-origin"
+    h["Cross-Origin-Resource-Policy"] = "same-origin"
     h["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     h["Cache-Control"] = "no-store"
     if settings.SECURE_COOKIES:

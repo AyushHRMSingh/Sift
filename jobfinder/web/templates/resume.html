@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block body %}
+{% if msg %}<div class="card err">{{ msg }}</div>{% endif %}
+<form class="card" method="post" action="/resume/upload" enctype="multipart/form-data">
+  <h3>Resume (PDF)</h3>
+  <input type="file" name="file" accept="application/pdf" required>
+  <p class="mut small">Reads the file the way a basic applicant tracking system does, then checks it against the jobs you have scanned. The score is a rule-of-thumb estimate, not what any particular employer's software would give. Uploading also updates your profile skills.</p>
+  <p><button class="primary">Upload and check</button></p>
+</form>
+{% if not r %}
+  <p class="mut">Upload a resume to see what a parser would extract and what to fix.</p>
+{% else %}
+{% set s = r.score %}
+<div class="card">
+  <div class="row" style="align-items:flex-end">
+    <div><div class="num" style="font:400 3.2rem/1 ui-serif,'New York',Georgia,serif">{{ s.total }}</div><div class="mut small">out of 100</div></div>
+    <div class="grow"></div>
+    <div class="num small" style="text-align:right;line-height:1.9">
+      <div><span class="mut">Parses cleanly</span> {{ s.parse }}</div>
+      <div><span class="mut">Reads well</span> {{ s.content }}</div>
+      {% if s.market is defined %}<div><span class="mut">Covers what jobs ask for</span> {{ s.market }}</div>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% set bad = r.notes|rejectattr('level','equalto','ok')|list %}
+<div class="card">
+  <h3>Fix first</h3>
+  {% if not bad %}<p class="mut">Nothing to fix.</p>{% endif %}
+  {% for lvl, label in (('fail','Fix'),('warn','Check')) %}{% for x in bad if x.level == lvl %}
+  <div style="margin:12px 0">
+    <div><span class="{{ 'err' if lvl == 'fail' else 'mut' }} small" style="text-transform:uppercase;letter-spacing:.08em;margin-right:8px">{{ label }}</span>{{ x.msg }}</div>
+    {% if x.fix %}<div class="mut small" style="margin-top:2px">{{ x.fix }}</div>{% endif %}
+  </div>
+  {% endfor %}{% endfor %}
+</div>
+
+{% set p = r.parsed %}
+<div class="card">
+  <h3>What a parser would extract</h3>
+  <table class="small">
+    <tr><th style="width:110px">Name</th><td>{{ p.name or '—' }}</td></tr>
+    <tr><th>Email</th><td>{{ p.contact.email or '—' }}</td></tr>
+    <tr><th>Phone</th><td>{{ p.contact.phone or '—' }}</td></tr>
+    <tr><th>Links</th><td>{{ 'LinkedIn' if p.contact.linkedin else '' }}{{ ', ' if p.contact.linkedin and p.contact.github else '' }}{{ 'GitHub' if p.contact.github else '' }}{{ '—' if not (p.contact.linkedin or p.contact.github) }}</td></tr>
+    <tr><th>Sections</th><td>{{ p.sections|join(', ') or '—' }}</td></tr>
+    <tr><th>Roles</th><td>{% for e in p.experience %}<div>{{ e.title or '?' }} <span class="mut">at</span> {{ e.company or '?' }} <span class="mut">({{ e['from'] }} – {{ e.to }})</span></div>{% else %}—{% endfor %}</td></tr>
+    <tr><th>Education</th><td>{% for e in p.education %}<div>{{ e.line }}</div>{% else %}—{% endfor %}</td></tr>
+    <tr><th>Skills</th><td>{% for k in p.skills %}<span class="tag">{{ k }}</span>{% else %}—{% endfor %}</td></tr>
+    <tr><th>Points</th><td class="num">{{ p.bullets }} bullet lines &middot; {{ r.words }} words &middot; {{ r.pages }} page{{ 's' if r.pages != 1 }}</td></tr>
+  </table>
+  <p class="mut small">Anything shown as — or ? here is what a parser would likely leave blank or get wrong, and a recruiter would see the same gap.</p>
+</div>
+
+{% if r.market %}
+<div class="card">
+  <h3>Skills the jobs ask for that you do not list</h3>
+  <p class="mut small">From {{ r.market.jobs }} scanned postings you are eligible for. Add one only if you really have it.</p>
+  <table class="small">
+    {% for g in r.market.gaps %}<tr><td>{{ g.skill }}</td><td class="num">{{ g.share }}%</td><td class="mut num">{{ g.jobs }} jobs</td><td style="width:35%"><div class="bar"><i style="width:{{ [g.share * 2, 100]|min }}%"></i></div></td></tr>{% endfor %}
+  </table>
+</div>
+{% else %}
+<p class="mut small">Market comparison appears once about twenty scanned postings have descriptions.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

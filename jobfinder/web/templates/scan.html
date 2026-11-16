@@ -13,7 +13,7 @@
 <div class="card">
   <div class="row"><h3 class="grow" style="margin:0">Discord alerts</h3>
   {% if discord %}<form method="post" action="/scan/test-alert"><button class="small">Send test</button></form>{% endif %}</div>
-  <p class="mut small" style="margin-bottom:0">{% if discord %}On. After each scan, new jobs at {{ min_match }}%+ match are posted once. Reminders of pending applications go out daily at {{ reminder_times|join(', ') }} ({{ reminder_tz }}) when your To apply list isn't empty.{% else %}Off. Set DISCORD_WEBHOOK_URL in .env and restart.{% endif %}</p>
+  <p class="mut small" style="margin-bottom:0">{% if discord %}On. One message twice a day, at {{ reminder_times|join(', ') }} ({{ reminder_tz }}), with how many jobs are waiting to apply and how many are left to swipe. Nothing is sent per new job.{% else %}Off. Set DISCORD_WEBHOOK_URL in .env and restart.{% endif %}</p>
 </div>
 <form class="card" method="post" action="/scan/config">
   <h3>Settings</h3>

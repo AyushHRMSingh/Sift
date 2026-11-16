@@ -13,21 +13,6 @@ _lock = threading.Lock()
 state = {"running": False, "message": "idle", "progress": 0.0}
 
 
-def alert_new_matches(con) -> int:
-    """Push unseen strong matches to the sinks (Discord), once per job."""
-    prof = matching.Profile(con)
-    if not prof.skills:
-        return 0
-    df = store.load(con, "new", description=False)
-    df = matching.ranked(df[df["notified"].isna()], prof)
-    strong = df[df["match_%"] >= settings.DISCORD_MIN_MATCH]
-    if strong.empty:
-        return 0
-    sinks.notify("scan", strong.to_dict("records"))
-    store.mark_notified(con, strong["job_url"].tolist())
-    return len(strong)
-
-
 def get_config(con) -> dict:
     return {**settings.DEFAULT_SCAN, **(store.get_kv(con, "scan_config", {}) or {})}
 
@@ -53,8 +38,6 @@ def run_now(manual: bool = False) -> bool:
                        cfg["full_descriptions"],
                        progress=lambda msg, f: state.update(message=msg, progress=f))
         log.info("scan done: %s", {k: v for k, v in res.items() if k != "errors"})
-        if sinks.active_sinks():
-            log.info("alerted on %d jobs", alert_new_matches(con))
         return True
     except Exception:
         log.exception("scan crashed")
@@ -108,18 +91,20 @@ def due_slots(now: datetime, sent: dict, times: list[str], grace_min: int = 10) 
 
 
 def send_reminders(con, now: datetime) -> list[str]:
-    """Send the pending-applications reminder for each due slot. Stays quiet when the queue is empty."""
+    """Twice-daily digest: jobs waiting to be applied to, and jobs waiting in the swipe queue.
+    Stays quiet when both are zero."""
     sent = store.get_kv(con, "reminders_sent", {}) or {}
     slots = due_slots(now, sent, settings.REMINDER_TIMES)
     if not slots:
         return []
-    pending = store.counts(con)["saved"]
+    counts = {"saved": store.counts(con)["saved"],
+              "queue": len(matching.ranked(store.load(con, "new", description=False), matching.Profile(con)))}
     for t in slots:
         sent[t] = now.date().isoformat()
-        if pending:
-            sinks.notify("reminder", pending)
+        if counts["saved"] or counts["queue"]:
+            sinks.notify("reminder", counts)
     store.set_kv(con, "reminders_sent", sent)
-    return slots if pending else []
+    return slots if counts["saved"] or counts["queue"] else []
 
 
 async def reminder_loop():

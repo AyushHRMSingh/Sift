@@ -2,7 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3f1ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131211" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
 <title>JobSpy</title>
 <script nonce="{{ request.state.nonce }}">try { document.documentElement.dataset.theme = localStorage.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) {}</script>
 <style>
@@ -11,9 +18,13 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) { --bg:#131211; --fg:#ecebe6; --mut:#8d8a83; --line:#2a2825; --acc:#e2674d } }
 :root { color-scheme:light } :root[data-theme=dark] { color-scheme:dark }
 * { box-sizing:border-box }
-html { -webkit-text-size-adjust:100% }
-body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:-.003em; animation:fade .35s var(--ease) }
-@keyframes fade { from { opacity:0; transform:translateY(6px) } }
+html { -webkit-text-size-adjust:100%; -webkit-tap-highlight-color:transparent }
+a,button,input,select,label { touch-action:manipulation }
+@media (pointer:coarse) { input,select,textarea { font-size:16px } button,.btn { min-height:44px } }  /* 16px stops iOS zooming on focus */
+@media (max-height:480px) { #bar { padding-top:6px !important; padding-bottom:calc(6px + env(safe-area-inset-bottom)) !important } #bar button,#bar .btn { min-height:36px; padding-top:3px; padding-bottom:3px } main { padding-bottom:70px } }  /* phone in landscape */
+@media (max-width:560px) { nav { padding:14px 16px !important; gap:8px 18px !important } main { padding-left:16px !important; padding-right:16px !important } }
+body { margin:0; padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); background:var(--bg); color:var(--fg); font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:-.003em; animation:fade .35s var(--ease) }
+@keyframes fade { from { opacity:0 } }  /* opacity only: a transform here would detach the fixed action bar from the viewport while it runs */
 @media (prefers-reduced-motion: reduce) { *, body { animation:none !important; transition:none !important } }
 a { color:inherit; text-decoration:none }
 h1,h2,h3 { font-weight:500; margin:0 0 .4em; line-height:1.2; letter-spacing:-.015em }
@@ -22,7 +33,7 @@ h3 { font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; color:var
 .mut { color:var(--mut) } .small { font-size:.85rem } .num { font-variant-numeric:tabular-nums }
 svg.i { width:1.05em; height:1.05em; vertical-align:-.17em; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
 
-nav { display:flex; gap:22px; align-items:baseline; padding:18px 24px; max-width:720px; margin:0 auto }
+nav { display:flex; flex-wrap:wrap; gap:6px 22px; align-items:baseline; padding:18px 24px; max-width:720px; margin:0 auto }
 nav .brand { font-weight:600; letter-spacing:-.02em; margin-right:auto }
 nav a, nav button { color:var(--mut); transition:color .15s; padding:0; border:0; background:none; font-size:inherit }
 nav a:hover, nav a.on, nav button:hover { color:var(--fg) }
@@ -64,6 +75,7 @@ th { color:var(--mut); font-size:.75rem; text-transform:uppercase; letter-spacin
   <a href="/" class="{{ 'on' if path == '/' }}">Swipe</a>
   <a href="/saved" class="{{ 'on' if path == '/saved' }}">Saved <span class="num">{{ counts.saved }}</span></a>
   <a href="/analysis" class="{{ 'on' if path == '/analysis' }}">Analysis</a>
+  <a href="/resume" class="{{ 'on' if path == '/resume' }}">Resume</a>
   <a href="/profile" class="{{ 'on' if path == '/profile' }}">Profile</a>
   <a href="/scan" class="{{ 'on' if path == '/scan' }}">Scan</a>
   <button id="theme" title="Toggle theme" aria-label="Toggle theme"><span class="moon">{{ icon("moon") }}</span><span class="sun">{{ icon("sun") }}</span></button>

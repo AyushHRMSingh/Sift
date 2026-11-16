@@ -79,7 +79,7 @@ def test_login_lockout_is_per_client_so_a_bot_cannot_lock_you_out(client):
     assert client.post("/login", data=LOGIN, headers={"cf-connecting-ip": "198.51.100.7"}, follow_redirects=False).status_code == 303
 
 
-def test_anonymous_flood_is_throttled_but_logged_in_user_is_not(client):
+def test_anonymous_flood_is_throttled_but_authed_user_is_not(client):
     hdr = {"cf-connecting-ip": "203.0.113.50"}
     codes = [client.get("/login", headers=hdr).status_code for _ in range(security.anon_limiter.limit + 5)]
     assert codes[: security.anon_limiter.limit] == [200] * security.anon_limiter.limit and codes[-1] == 429
@@ -128,3 +128,31 @@ def test_production_config_sets_secure_cookie_and_hsts(tmp_path):
     env = {**os.environ, "DATA_DIR": str(tmp_path), "APP_PASSWORD": "pw", "SECURE_COOKIES": "1"}
     out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=settings.ROOT, timeout=60).stdout
     assert all(flag in out for flag in ("httponly", "samesite=lax", "secure", "max-age=31536000")), out
+
+
+def test_manifest_and_icon_open_without_login(client):
+    assert client.get("/manifest.webmanifest").status_code == 200
+    assert client.get("/icon.svg").status_code == 200
+
+
+def test_bad_scan_config_input_does_not_crash(authed):
+    r = authed.post("/scan/config", data={"interval_hours": "abc", "results": "x", "days": ""},
+                       follow_redirects=False)
+    assert r.status_code == 303
+
+
+def test_chunked_body_over_cap_is_dropped(authed, monkeypatch):
+    monkeypatch.setattr(security, "MAX_BODY", 1000)
+    def gen():
+        yield b"a=" + b"x" * 5000
+    with pytest.raises(Exception):
+        authed.post("/profile/skills", content=gen(), headers={"content-type": "application/x-www-form-urlencoded"})
+
+
+def test_reset_wipes_db_keeps_backup(con):
+    from jobfinder.__main__ import reset
+    store.upsert(con, make_jobs({}))
+    con.close()
+    reset(purge=False, yes=True)
+    assert not store.DB_PATH.exists()
+    assert list((settings.DATA_DIR / "backups").glob("jobs-before-reset-*.db"))

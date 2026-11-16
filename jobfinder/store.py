@@ -153,11 +153,6 @@ def set_status(con: sqlite3.Connection, url: str, status: str, swipe: bool = Fal
     con.commit()
 
 
-def mark_notified(con: sqlite3.Connection, urls: list[str]) -> None:
-    con.executemany("UPDATE jobs SET notified=? WHERE job_url=?", [(now(), u) for u in urls])
-    con.commit()
-
-
 def undo_last_swipe(con: sqlite3.Connection) -> str | None:
     row = con.execute("SELECT job_url FROM jobs WHERE swiped_at IS NOT NULL ORDER BY swiped_at DESC, rowid DESC LIMIT 1").fetchone()
     if row:

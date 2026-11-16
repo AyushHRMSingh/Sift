@@ -24,11 +24,8 @@ class Sink(ABC):
     def push_status(self, job: dict) -> None:
         """Called when a saved job changes status (applied/rejected). Optional."""
 
-    def push_reminder(self, pending: int) -> None:
-        """Called at the reminder times with the number of jobs waiting in 'saved'. Optional."""
-
-    def push_scan(self, jobs: list[dict]) -> None:
-        """Called after a scan with the new strong matches, best first. Optional."""
+    def push_reminder(self, counts: dict) -> None:
+        """Called at the reminder times with {"saved": jobs to apply to, "queue": jobs left to swipe}. Optional."""
 
 
 def register(cls: type[Sink]) -> type[Sink]:

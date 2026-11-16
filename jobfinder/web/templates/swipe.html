@@ -1,14 +1,25 @@
 {% extends "base.html" %}
 {% from "icons.html" import icon %}
 {% block body %}
-<style>@media (max-width: 520px) { .lbl { display: none } }</style>
+<style>
+@media (max-width: 520px) { .lbl { display: none } }
+#edge { position:fixed; inset:0; z-index:4; pointer-events:none; opacity:0 }
+#stamp { transition:opacity .12s, transform .14s var(--ease), background-color .14s; position:fixed; top:140px; z-index:5; display:none; align-items:center; gap:6px; padding:6px 12px; border:2px solid; border-radius:6px; background:var(--bg);
+  font:600 .85rem/1 ui-sans-serif,system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; pointer-events:none }
+#stamp.full { color:var(--bg) !important }
+#stamp.save { left:20px; transform:rotate(-6deg); color:var(--acc); border-color:var(--acc) } #stamp.save.full { background:var(--acc) }
+#stamp.pass { right:20px; transform:rotate(6deg); color:var(--fg); border-color:var(--fg) } #stamp.pass.full { background:var(--fg) }
+#stamp.research { left:50%; margin-left:-60px; color:var(--fg); border-color:var(--fg) } #stamp.research.full { background:var(--fg) }
+</style>
 {% if not job %}
   <div style="padding:14vh 0 0"><h2 class="title">All caught up</h2>
   <p class="mut">New jobs arrive with the hourly scan.</p>
   <div class="row"><a class="btn" href="/saved">Saved jobs</a>
   {% if can_undo %}<form method="post" action="/undo"><button>{{ icon("undo") }} Undo last</button></form>{% endif %}</div></div>
 {% else %}
-<article id="card" class="card" style="border:0;padding-top:12px">
+<div id="edge" aria-hidden="true"></div>
+<div id="stamp" aria-hidden="true"></div>
+<article id="card" class="card" style="border:0;padding-top:12px;touch-action:pan-y">
   <div class="row" style="align-items:flex-start;flex-wrap:nowrap">
     <div class="grow">
       <div class="mut small num">{{ left }} left</div>
@@ -32,7 +43,7 @@
   <div style="white-space:pre-wrap;overflow-wrap:anywhere;margin-top:24px;padding-top:24px;border-top:1px solid var(--line)">{{ (job.description or 'No description captured for this posting.')|plain }}</div>
 </article>
 
-<div id="bar" style="position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 24px">
+<div id="bar" style="position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))">
   <div class="row" style="max-width:720px;margin:0 auto;flex-wrap:nowrap">
     <form method="post" action="/swipe" class="grow" data-dir="left"><input type="hidden" name="url" value="{{ job.job_url }}"><input type="hidden" name="action" value="pass">
       <button id="pass" style="width:100%;justify-content:center">{{ icon("x") }} Pass</button></form>
@@ -47,9 +58,24 @@
 
 <script nonce="{{ request.state.nonce }}">
 const card = document.getElementById('card'), ease = 'transform .22s cubic-bezier(.2,.7,.2,1), opacity .22s';
+const stampEl = document.getElementById('stamp');
+const NAMES = {save: 'Save', pass: 'Pass', research: 'Research'}, KIND = {right: 'save', left: 'pass', up: 'research'};
+let armed = false;
+function stamp(kind, t) {  // t: 0..1 pull strength; the stamp fills in when letting go would commit
+  const edge = document.getElementById('edge');
+  if (!kind || t < .1) { stampEl.style.display = 'none'; edge.style.opacity = 0; armed = false; return; }
+  const k = 1 - Math.pow(1 - Math.min(t, 1), 2), full = t >= 1;   // ease-out
+  if (full !== armed) { armed = full; if (full && navigator.vibrate) navigator.vibrate(8); }
+  stampEl.className = kind + (full ? ' full' : ''); stampEl.style.display = 'inline-flex'; stampEl.style.opacity = k;
+  stampEl.style.scale = .86 + .14 * k + (full ? .06 : 0); stampEl.textContent = NAMES[kind];
+  if (kind === 'research') { edge.style.opacity = 0; return; }
+  edge.style.background = `linear-gradient(to ${kind === 'save' ? 'left' : 'right'}, color-mix(in srgb, var(${kind === 'save' ? '--acc' : '--fg'}) 18%, transparent), transparent 55%)`;
+  edge.style.opacity = k;
+}
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function fling(form, dir) {
   if (form.dataset.busy) return; form.dataset.busy = 1;
+  stamp(KIND[dir], 1);
   if (still) return form.submit();
   card.style.transition = ease;
   card.style.transform = dir === 'up' ? 'translateY(-80px)' : `translateX(${dir === 'right' ? 120 : -120}px) rotate(${dir === 'right' ? 4 : -4}deg)`; card.style.opacity = 0;
@@ -66,12 +92,12 @@ card.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.tou
 card.addEventListener('touchmove', e => {
   if (x0 === null) return; const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
   if (!dragging && Math.abs(dx) > 12 && Math.abs(dx) > 2 * Math.abs(dy)) dragging = true;
-  if (dragging) { card.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`; card.style.opacity = 1 - Math.min(Math.abs(dx) / 400, .5); }
+  if (dragging) { stamp(dx > 0 ? 'save' : 'pass', Math.abs(dx) / 100); card.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`; card.style.opacity = 1 - Math.min(Math.abs(dx) / 400, .5); }
 }, {passive:true});
 card.addEventListener('touchend', e => {
   if (x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null;
   if (dragging && Math.abs(dx) > 100) click(dx > 0 ? 'save' : 'pass');
-  else { card.style.transition = ease; card.style.transform = ''; card.style.opacity = 1; }
+  else { stamp(null); card.style.transition = ease; card.style.transform = ''; card.style.opacity = 1; }
 });
 </script>
 {% endif %}
