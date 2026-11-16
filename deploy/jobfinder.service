@@ -2,7 +2,7 @@
 #   sed -e "s|__USER__|$USER|g" -e "s|__DIR__|$PWD|g" deploy/jobfinder.service | sudo tee /etc/systemd/system/jobfinder.service
 # Check the result on the server with: systemd-analyze security jobfinder
 [Unit]
-Description=JobSpy
+Description=Sift job finder
 After=network-online.target
 
 [Service]

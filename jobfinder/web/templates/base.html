@@ -1,4 +1,4 @@
-{% from "icons.html" import icon %}<!doctype html>
+{% from "icons.html" import icon, logo %}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -10,7 +10,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon.svg">
-<title>JobSpy</title>
+<title>Sift</title>
 <script nonce="{{ request.state.nonce }}">try { document.documentElement.dataset.theme = localStorage.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) {}</script>
 <style>
 :root { --bg:#f3f1ec; --fg:#1a1917; --mut:#77736b; --line:#dcd8cf; --acc:#c8452c; --ease:cubic-bezier(.2,.7,.2,1) }
@@ -34,7 +34,7 @@ h3 { font-size:.75rem; text-transform:uppercase; letter-spacing:.09em; color:var
 svg.i { width:1.05em; height:1.05em; vertical-align:-.17em; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round }
 
 nav { display:flex; flex-wrap:wrap; gap:6px 22px; align-items:baseline; padding:18px 24px; max-width:720px; margin:0 auto }
-nav .brand { font-weight:600; letter-spacing:-.02em; margin-right:auto }
+nav .brand { font-weight:600; letter-spacing:-.02em; margin-right:auto; color:var(--fg); display:inline-flex; align-items:center; gap:8px }
 nav a, nav button { color:var(--mut); transition:color .15s; padding:0; border:0; background:none; font-size:inherit }
 nav a:hover, nav a.on, nav button:hover { color:var(--fg) }
 nav a.on { box-shadow:0 1.5px 0 var(--fg) } nav form { margin:0 }
@@ -71,7 +71,7 @@ th { color:var(--mut); font-size:.75rem; text-transform:uppercase; letter-spacin
 <body>
 {% if path != '/login' %}
 <nav>
-  <a class="brand" href="/">JobSpy</a>
+  <a class="brand" href="/" aria-label="Sift home">{{ logo(20) }}Sift</a>
   <a href="/" class="{{ 'on' if path == '/' }}">Swipe</a>
   <a href="/saved" class="{{ 'on' if path == '/saved' }}">Saved <span class="num">{{ counts.saved }}</span></a>
   <a href="/analysis" class="{{ 'on' if path == '/analysis' }}">Analysis</a>

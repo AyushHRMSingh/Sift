@@ -95,7 +95,7 @@ def robots():
 
 @app.get("/manifest.webmanifest")
 def manifest():
-    return JSONResponse({"name": "JobSpy", "short_name": "JobSpy", "start_url": "/", "display": "standalone",
+    return JSONResponse({"name": "Sift", "short_name": "Sift", "start_url": "/", "display": "standalone",
                          "background_color": "#f3f1ec", "theme_color": "#f3f1ec",
                          "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"}]},
                         media_type="application/manifest+json")
@@ -103,8 +103,7 @@ def manifest():
 
 @app.get("/icon.svg")
 def icon():
-    return Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" '
-                    'fill="#1a1917"/><circle cx="32" cy="32" r="12" fill="#c8452c"/></svg>', media_type="image/svg+xml")
+    return Response((HERE / "logo.svg").read_text(), media_type="image/svg+xml")
 
 
 @app.get("/healthz")

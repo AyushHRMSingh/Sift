@@ -11,3 +11,7 @@
 {% elif name == 'moon' %}<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>
 {% endif %}</svg>
 {%- endmacro %}
+{# Sift mark: bars narrowing to one dot. Bars follow the text colour, the dot the accent. #}
+{% macro logo(size=22) -%}
+<svg class="logo" width="{{ size }}" height="{{ size }}" viewBox="10 11 44 44" role="img" aria-label="Sift"><g fill="currentColor"><rect x="12" y="13" width="40" height="4" rx="2"/><rect x="18" y="23" width="28" height="4" rx="2"/><rect x="24" y="33" width="16" height="4" rx="2"/></g><circle cx="32" cy="47" r="5" fill="var(--acc)"/></svg>
+{%- endmacro %}

@@ -15,7 +15,7 @@ HOSTS = {"discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com
 
 def _post(url: str, body: dict) -> None:
     req = urllib.request.Request(url, json.dumps(body).encode(),
-                                 {"Content-Type": "application/json", "User-Agent": "JobSpy/1.0"})
+                                 {"Content-Type": "application/json", "User-Agent": "Sift/1.0"})
     for attempt in range(2):
         try:
             urllib.request.urlopen(req, timeout=15).read()
@@ -49,4 +49,4 @@ class DiscordSink(Sink):
         _post(self.url, {"content": "\n".join(lines), "allowed_mentions": {"parse": []}})
 
     def test(self) -> None:
-        _post(self.url, {"content": "JobSpy test message: alerts are connected.", "allowed_mentions": {"parse": []}})
+        _post(self.url, {"content": "Sift test message: alerts are connected.", "allowed_mentions": {"parse": []}})
