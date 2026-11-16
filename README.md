@@ -80,3 +80,6 @@ MIT, see [LICENSE](LICENSE).
 
 ## Disclaimer
 Sift scrapes public job listings through JobSpy. Scraping may violate the terms of service of the sites involved (LinkedIn and Indeed in particular). It is meant for personal use at low volume; you are responsible for how you use it. Not affiliated with any job board.
+
+---
+Vibecoded with disdain
